@@ -2,7 +2,6 @@ import os
 import math
 
 import torch
-torch.autograd.set_detect_anomaly(True)
 
 from torch import nn, optim
 import torchvision
@@ -37,7 +36,9 @@ class ConvBlock(nn.Sequential):
         super().__init__()
         self.add_module("conv", nn.Conv2d(in_channels, out_channels, 
             kernel_size=kernel_size, 
-            padding=padding))
+            padding=padding,
+            padding_mode="reflect") # TODO investigate this
+        ) 
         if batch_norm:
             self.add_module("norm", nn.BatchNorm2d(out_channels))
         self.add_module("leaky_relu", nn.LeakyReLU(0.2, inplace=True))
@@ -108,6 +109,7 @@ class Discriminator(Sequential):
             in_channels=max(N, nfc_min),
             out_channels=1,
             kernel_size=3,
+            padding_mode="reflect" # TODO investigate this
         ))
 
         # Optimizers
@@ -118,55 +120,35 @@ class Discriminator(Sequential):
         self.apply(self.init_parameters)
 
     def gradient_penalty(self, real_image, fake_image):
-        # *Memory leak somewhere in this function*
-        print(torch.cuda.memory_allocated(0) / 2**20)
-        alpha = torch.rand(1, 1)
-        alpha.expand(real_image.size())
-        alpha = alpha.to(self.device)
-
+        alpha = torch.rand(1, device=self.device)
         interpolation = alpha * real_image + (1 - alpha) * fake_image
         interpolation.requires_grad = True
 
-        output = self(interpolation).mean()  # original paper was .sum()
-
-        print(torch.cuda.memory_allocated(0) / 2**20)
-
+        output = self(interpolation)
         gradient = torch.autograd.grad(output, interpolation, 
-            create_graph=True, only_inputs=True)[0]
-
-        print(torch.cuda.memory_allocated(0) / 2**20)
+            grad_outputs=torch.ones(size=output.size(), device=self.device),
+            create_graph=True, retain_graph=True, only_inputs=True)[0]
 
         gradient_penalty = ((gradient.norm(2, dim=1) - 1) ** 2).mean() * self.opt.lambda_grad
         gradient_penalty.backward()
 
-        # This does not solve anything
-        del interpolation
-        del output
-        del gradient
-        del gradient_penalty
-        torch.cuda.empty_cache()
+    def step(self, image_real, image_fake):
+        self.zero_grad()
 
-        print(torch.cuda.memory_allocated(0) / 2**20)
-        print()
+        # Train with real image
+        output = self(image_real)
+        errD_real = -output.mean()
+        errD_real.backward()
 
-    def update(self, image_real, image_fake):
-        for i in range(self.opt.D_steps):
-            self.zero_grad()
+        # Train with fake
+        output = self(image_fake)
+        errD_fake = output.mean()
+        errD_fake.backward()
 
-            # Train with real image
-            output = self(image_real)
-            errD_real = -output.mean()
-            errD_real.backward()
+        self.gradient_penalty(image_real, image_fake)
 
-            # Train with fake
-            output = self(image_fake)
-            errD_fake = output.mean()
-            errD_fake.backward()
-
-            self.gradient_penalty(image_real, image_fake)
-
-            # Optimizer
-            self.optimizer.step()
+        # Optimizer
+        self.optimizer.step()
 
 
 class Generator(Sequential):
@@ -197,6 +179,7 @@ class Generator(Sequential):
             out_channels=opt.nc_image,
             kernel_size=3,
             padding=1,
+            padding_mode="reflect" # TODO investigate this
         ))
         self.add_module("tail_tanh", nn.Tanh())
 
@@ -211,19 +194,19 @@ class Generator(Sequential):
         generated = super().forward(noise)
         return generated + previous_image
 
-    def update(self, discriminator, image_real, image_fake, noise_reconstruction, previous_reconstruction):
-        # opt.G_steps > 1 causes gradient issues
-        # Using G_steps > 1 isn't really useful anyway as the generator
-        # is only applied once anyway.
+    def step(self, discriminator, 
+            image_real, noise_fake, previous_fake, 
+            noise_reconstruction, previous_reconstruction):
 
         self.zero_grad()
-
-        # Generation loss
+        
+        # Fake generation
+        image_fake = self(noise_fake, previous_fake)
         output = discriminator(image_fake) 
         errG_gen = -output.mean()
         errG_gen.backward()
 
-        # Reconstruction loss
+        # Reconstruction
         image_reconstructed = self(noise_reconstruction, previous_reconstruction)
         errG_rec = self.opt.alpha * nn.MSELoss()(image_reconstructed, image_real)
         errG_rec.backward()
@@ -231,7 +214,7 @@ class Generator(Sequential):
         # Optimizer
         self.optimizer.step()
 
-        return image_reconstructed
+        return image_reconstructed.detach()
 
 
 class SinGAN():
@@ -249,9 +232,9 @@ class SinGAN():
         self.noises_reconstruction = []
         self.images_reconstruction = []        
 
-    def generate_noise(self, size):
-        noise = torch.randn(1, 1, *size, device=self.device)
-        noise = noise.expand(1, 3, *size)
+    def generate_noise(self, size, batch_size=1):
+        noise = torch.randn(batch_size, 1, *size, device=self.device)
+        noise = noise.expand(batch_size, 3, *size)
         return noise
 
     def train(self):
@@ -297,29 +280,38 @@ class SinGAN():
         image_real = self.images[scale].to(self.device)
 
         # Input for reconstruction loss
-        noise_amplification, noise_reconstruction, previous_reconstruction = self.build_reconstruction_input(scale)
+        noise_reconstruction, previous_reconstruction = self.build_reconstruction_input(scale)
 
         for epoch in tqdm.tqdm(range(opt.Niter), ncols=80):
-            noise_fake, previous_fake = self.build_fake_input(scale)
-            image_fake = generator(noise_fake, previous_fake)
+            noise_fake, previous_fake = self.build_fake_input(scale, batch_size=opt.batch_size)
+
+            with torch.no_grad():
+                image_fake = generator(noise_fake, previous_fake)
             
-            discriminator.update(
-                image_real, 
-                image_fake.detach())
+            # Train discriminator
+            # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L105
+            for i in range(opt.D_steps):
+                discriminator.step(
+                    image_real, 
+                    image_fake)
 
-            image_reconstructed = generator.update(
-                discriminator, 
-                image_real, 
-                image_fake, 
-                noise_reconstruction, 
-                previous_reconstruction)
+            # Train generator
+            # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L169
+            for i in range(opt.G_steps):
+                image_reconstructed = generator.step(
+                    discriminator, 
+                    image_real, 
+                    noise_fake,
+                    previous_fake, 
+                    noise_reconstruction, 
+                    previous_reconstruction)
 
-            # if (epoch + 1) % 100 == 0:
-            #     torchvision.utils.save_image(denormalize_image(image_fake), f"images/{scale}/image_fake.png")
-            #     torchvision.utils.save_image(denormalize_image(image_reconstructed), f"images/{scale}/image_reconstructed.png")
+            if (epoch + 1) % 100 == 0:
+                torchvision.utils.save_image(denormalize_image(image_fake), f"images/{scale}/image_fake.png")
+                torchvision.utils.save_image(denormalize_image(image_reconstructed), f"images/{scale}/image_reconstructed.png")
 
-            # discriminator.scheduler.step()
-            # generator.scheduler.step()
+            discriminator.scheduler.step()
+            generator.scheduler.step()
     
         discriminator.save()
         generator.save()
@@ -350,12 +342,12 @@ class SinGAN():
             torchvision.utils.save_image(denormalize_image(resized_image), path)
 
     def build_reconstruction_input(self, scale):
+        # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L243
         _, nc, nx, ny = self.images[scale].shape
 
         if len(self.noises_reconstruction) <= scale:
-            if os.path.exists(f"images/{scale}/noise_amplification.pth"):
+            if os.path.exists(f"images/{scale}/noise_reconstruction.pth"):
                 # Reconstruction inputs for this scale already exists
-                noise_amplification = torch.load(f"images/{scale}/noise_amplification.pth")
                 image = torch.load(f"images/{scale}/image_reconstruction.pth")
                 noise = torch.load(f"images/{scale}/noise_reconstruction.pth")
 
@@ -364,7 +356,6 @@ class SinGAN():
                 if scale == 0:
                     image = torch.zeros(1, 1, 1, 1, device=self.device)
                     noise = self.generate_noise([nx, ny])
-                    noise_amplification = 1
 
                 else:
                     image_previous = self.images_reconstruction[scale-1]
@@ -372,38 +363,40 @@ class SinGAN():
                     with torch.no_grad():
                         image = self.generators[scale-1](noise_previous, image_previous)
                     image = torchvision.transforms.functional.resize(image, size=(nx, ny))  
-                    noise_amplification = torch.sqrt(nn.MSELoss()(image, self.images[scale]))
-                    noise = torch.zeros([1, 3, nx, ny], device=self.device) * noise_amplification + image
+                    noise = image
 
-                torch.save(noise_amplification, f"images/{scale}/noise_amplification.pth")
                 torch.save(image, f"images/{scale}/image_reconstruction.pth")
                 torch.save(noise, f"images/{scale}/noise_reconstruction.pth")
 
+            # Compute noise amplification
+            if scale == 0:
+                noise_amplification = 1
+            else:
+                noise_amplification = torch.sqrt(nn.MSELoss()(image, self.images[scale]))
+    
             print(f"Noise amplification for scale {scale}: {noise_amplification:.5f}")
     
             self.noise_amplifications.append(noise_amplification)
             self.noises_reconstruction.append(noise)
             self.images_reconstruction.append(image)
             
-        return \
-            self.noise_amplifications[scale], \
-            self.noises_reconstruction[scale], \
-            self.images_reconstruction[scale]
+        return self.noises_reconstruction[scale], self.images_reconstruction[scale]
 
-    def build_fake_input(self, target_scale):
+    def build_fake_input(self, scale, batch_size=1):
+        # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
         _, nc, nx, ny = self.images[0].shape
-        previous_fake = torch.zeros(1, 1, 1, 1, device=self.device)   
-        noise_fake = self.generate_noise([nx, ny]) # * noise_amplication[0] + previous_fake     
+        image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
+        noise = self.generate_noise([nx, ny], batch_size) # * noise_amplication[0] + image     
 
         with torch.no_grad():
-            for scale, generator in enumerate(self.generators[:target_scale]):
-                previous_fake = generator(noise_fake, previous_fake)
+            for scale, generator in enumerate(self.generators[:scale]):
+                image = generator(noise, image)
 
-                _, nc, nx, ny = self.images[scale+1].shape
-                previous_fake = torchvision.transforms.functional.resize(previous_fake, size=(nx, ny))
-                noise_fake = self.generate_noise([nx, ny]) * self.noise_amplifications[scale+1] + previous_fake
+                bs, nc, nx, ny = self.images[scale+1].shape
+                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale+1] + image
 
-        return noise_fake, previous_fake
+        return noise, image
 
 
 
