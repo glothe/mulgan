@@ -56,7 +56,7 @@ class Generator(MulSequential):
         
         # Fake generation
         image_fake = self(noise_fake, previous_fake)
-        discriminator.eval()
+        # discriminator.eval()
         output = discriminator(image_fake)
         errG_gen = -output.mean()
         errG_gen.backward()  # MEF: that updates discriminator gradients too I think
