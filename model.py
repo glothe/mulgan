@@ -159,7 +159,7 @@ class MulGAN():
                     os.mkdir(scale_folder)
                 path = os.path.join(scale_folder, os.path.basename(paths[im_idx]))
                 torchvision.utils.save_image(denormalize_image(resized_image), path)
-            self.scaled_images.append(torch.stack(scaled_images))
+            self.scaled_images.append(torch.cat(scaled_images, dim=0))
 
     def build_reconstruction_input(self, scale):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L243
