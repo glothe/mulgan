@@ -35,7 +35,7 @@ class MulGAN():
         self.rec_input_noises = []
         self.rec_input_images = []        
 
-    def generate_noise(self, size, batch_size=1):
+    def generate_noises(self, size, batch_size=1):
         noise = torch.randn(batch_size, 1, *size, device=self.device)
         noise = noise.expand(batch_size, 3, *size)
         return noise
@@ -209,21 +209,20 @@ class MulGAN():
             print(f"Noise amplification for scale {scale}: {noise_amplification:.5f}")
             self.noise_amplifications.append(noise_amplification)
 
-    def build_fake_input(self, scale, batch_size=1):
+    def build_fake_inputs(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
-        _, nc, nx, ny = self.images[0].shape
-        image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
-        noise = self.generate_noise([nx, ny], batch_size) # * noise_amplication[0] + image     
+        _, nc, nx, ny = self.images[0][0].shape
+        images = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
+        noises = self.generate_noises([nx, ny], batch_size)
 
         with torch.no_grad():
             for scale, generator in enumerate(self.generators[:scale]):
-                image = generator(noise, image)
+                images = generator(noises, images)
+                bs, nc, nx, ny = self.images[scale+1][0].shape
+                images = torchvision.transforms.functional.resize(images, size=(nx, ny))
+                noises = self.generate_noises([nx, ny], batch_size) * self.noise_amplifications[scale+1]
 
-                bs, nc, nx, ny = self.images[scale+1].shape
-                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
-                noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale+1] + image
-
-        return noise, image
+        return noises, images
 
 
 
