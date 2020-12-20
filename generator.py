@@ -43,8 +43,8 @@ class Generator(MulSequential):
         self.to(device)
         self.apply(self.init_parameters)
 
-    def forward(self, noise, previous_image = 0): # MEF noise is actually the noise + the previous image
-        generated = super().forward(noise)
+    def forward(self, noise, previous_image = 0):
+        generated = super().forward(noise + previous_image)
         return generated + previous_image
 
     def step(self, discriminator, image_real,
