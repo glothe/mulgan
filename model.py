@@ -163,7 +163,7 @@ class MulGAN():
 
     def build_reconstruction_input(self, scale):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L243
-        _, nc, nx, ny = self.scaled_images[scale][0].shape
+        batchsize, nc, nx, ny = self.scaled_images[scale].shape
 
         if len(self.rec_input_noises) <= scale:
             rec_input_image_path = os.path.join("images", str(scale), f"rec_input_image.pth")
@@ -201,7 +201,7 @@ class MulGAN():
 
     def build_fake_input(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
-        _, nc, nx, ny = self.scaled_images[0][0].shape
+        batchsize, nc, nx, ny = self.scaled_images[0].shape
         image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
         noise = self.generate_noise([nx, ny], batch_size)
 
