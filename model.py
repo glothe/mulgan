@@ -92,7 +92,7 @@ class MulGAN():
 
             with torch.no_grad():
                 image_fake = generator(fake_input_noise, fake_input_image)
-            
+
             # Train discriminator
             # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L105
             for i in range(opt.D_steps):
@@ -106,8 +106,8 @@ class MulGAN():
                     image_real,
                     fake_input_noise,
                     fake_input_image,
-                    noise_reconstruction,
-                    previous_reconstruction)
+                    self.rec_input_noises[scale],
+                    self.rec_input_images[scale])
 
             if (epoch + 1) % 100 == 0:
                 torchvision.utils.save_image(denormalize_image(image_fake), f"images/{scale}/image_fake.png")
@@ -198,7 +198,6 @@ class MulGAN():
             self.noise_amplifications.append(noise_amplification)
             self.rec_input_images.append(image)
             self.rec_input_noises.append(noise)
-
 
     def build_fake_inputs(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
