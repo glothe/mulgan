@@ -7,7 +7,8 @@ from model import SinGAN
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--nc_image',type=int,help='image # channels',default=3)
+parser.add_argument('--nc_image',type=int, help='image # channels',default=3)
+parser.add_argument('--images', nargs='*', type=str, help='Paths of images to use.', default=["balloons.png"])
 
 # Networks hyper parameters:
 parser.add_argument('--nfc', type=int, default=32)

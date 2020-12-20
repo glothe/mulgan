@@ -24,9 +24,10 @@ class MulGAN():
         self.opt = opt
 
         self.nscales = 0
+        self.im_paths = opt.images
+        self.nimages = len(self.im_paths)
         self.sizes = []
         self.scaled_images = []
-        self.im_paths = ["balloons.png"]
         self.build_pyramids()
         self.generators = []
 
@@ -81,26 +82,21 @@ class MulGAN():
     def train_scale(self, scale, discriminator, generator):
         """Train the discriminator and generator for a single scale"""
         opt = self.opt
-        images_real = []
-        for im in self.scaled_images[scale]:
-            images_real.append(im.to(self.device))
+        image_real = torch.stack(self.scaled_images[scale]).to(self.device)
 
         # Input for reconstruction loss
         self.build_reconstruction_input(scale)
 
         for epoch in tqdm.tqdm(range(opt.Niter), ncols=80):
-            noise_fake, previous_fake = self.build_fake_input(scale, batch_size=opt.batch_size)
+            fake_input_noise, fake_input_image = self.build_fake_input(scale, batch_size=opt.batch_size)
 
             with torch.no_grad():
-                image_fake = generator(noise_fake, previous_fake)
+                image_fake = generator(fake_input_noise, fake_input_image)
             
             # Train discriminator
             # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L105
             for i in range(opt.D_steps):
-                for im_r, im_f in zip(images_real, images_fake):
-                    discriminator.step(
-                        im_r,
-                        im_f)
+                discriminator.step(image_real, image_fake)
 
             # Train generator
             # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L169
@@ -108,8 +104,8 @@ class MulGAN():
                 image_reconstructed = generator.step(
                     discriminator,
                     image_real,
-                    noise_fake,
-                    previous_fake,
+                    fake_input_noise,
+                    fake_input_image,
                     noise_reconstruction,
                     previous_reconstruction)
 
@@ -127,7 +123,7 @@ class MulGAN():
         """Initializes the attributes self.images, self.sizes and self.nscales.
         self.sizes is the list of all chosen sizes.
         self.nscales is the number of such scales.
-        self.scaled_images is a list of list containing the rescaled images,
+        self.scaled_images is a list of tensors containing the rescaled images,
         indexed first by scale then by image.
         i.e. self.scaled_images[n][m] is the n-th scale of the m_th image."""
         paths = self.im_paths
@@ -148,81 +144,76 @@ class MulGAN():
         # Build all resized images
         self.scaled_images = []
         for scale, size in enumerate(sizes):
-            self.scaled_images.append([])
+            scaled_images = []
             for im_idx, im in enumerate(input_images):
                 # TODO: use bicubic interpolation ?
                 # Should be better and the additional time cost should not be a problem since it's done only once
                 resized_image = torchvision.transforms.functional.resize(im, size)
                 resized_image = torchvision.transforms.functional.to_tensor(resized_image)
                 resized_image = normalize_image(resized_image[None,:])
-                self.images[-1].append(resized_image.to(self.device))
+                scaled_images.append(resized_image.to(self.device))
 
+                # Save this image
                 scale_folder = os.path.join(out_folder, str(scale))
                 if not os.path.exists(scale_folder):
                     os.mkdir(scale_folder)
                 path = os.path.join(scale_folder, os.path.basename(paths[im_idx]))
                 torchvision.utils.save_image(denormalize_image(resized_image), path)
+            self.scaled_images.append(torch.stack(scaled_images))
 
     def build_reconstruction_input(self, scale):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L243
         _, nc, nx, ny = self.images[scale][0].shape
 
         if len(self.rec_input_noises) <= scale:
-            self.rec_input_images.append([])
-            self.rec_input_noises.append([])
-            mse_losses = torch.zeros(len(self.im_paths))
-            for im_idx, im_path in enumerate(self.im_paths):
-                rec_input_image_path = os.path.join("images", str(scale), f"rec_input_image_{im_path}.pth")
-                rec_input_noise_path = os.path.join("images", str(scale), f"rec_input_noise_{im_path}.pth")
-                if os.path.exists(rec_input_noise_path):
-                    # Reconstruction inputs for this scale and this image already exists
-                    image = torch.load(rec_input_image_path)
-                    noise = torch.load(rec_input_noise_path)
+            rec_input_image_path = os.path.join("images", str(scale), f"rec_input_image.pth")
+            rec_input_noise_path = os.path.join("images", str(scale), f"rec_input_noise.pth")
+            if os.path.exists(rec_input_noise_path):
+                # Reconstruction inputs for this scale and this image already exists
+                image = torch.load(rec_input_image_path)
+                noise = torch.load(rec_input_noise_path)
+            else:
+                # Generate reconstruction inputs
+                if scale == 0:
+                    image = torch.zeros(self.nimages, 1, 1, 1, device=self.device)
+                    noise = self.generate_noise([nx, ny], self.nimages)  # TODO: Find better reconstruction inputs, this is too random
                 else:
-                    # Generate reconstruction inputs
-                    if scale == 0:
-                        image = torch.zeros(1, 1, 1, 1, device=self.device)
-                        noise = self.generate_noise([nx, ny])  # TODO: Find better reconstruction inputs, this is too random
-                    else:
-                        image_previous = self.images_reconstruction[scale-1]
-                        noise_previous = self.noises_reconstruction[scale-1]
-                        with torch.no_grad():
-                            self.generators[scale-1].eval()
-                            image = self.generators[scale-1](noise_previous, image_previous)
-                        image = torchvision.transforms.functional.resize(image, size=(nx, ny))
-                        noise = torch.zeros_like(image)
+                    image_previous = self.rec_input_images[scale - 1]
+                    noise_previous = self.rec_input_noises[scale - 1]
+                    with torch.no_grad():
+                        # self.generators[scale-1].eval()
+                        image = self.generators[scale - 1](noise_previous, image_previous)
+                    image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                    noise = torch.zeros_like(image)
 
-                    torch.save(image, rec_input_image_path)
-                    torch.save(noise, rec_input_noise_path)
+                torch.save(image, rec_input_image_path)
+                torch.save(noise, rec_input_noise_path)
 
-                if scale != 0:
-                    mse_losses[im_idx] = nn.MSELoss()(image, self.images[scale])
-
-                self.rec_input_noises[scale].append(noise)
-                self.rec_input_images[scale].append(image)
-            
             # Compute noise amplification
             if scale == 0:
                 noise_amplification = 1
             else:
-                noise_amplification = torch.sqrt(torch.mean(mse_losses)).item()
+                noise_amplification = torch.sqrt(nn.MSELoss()(image, self.images[scale])).item()
             print(f"Noise amplification for scale {scale}: {noise_amplification:.5f}")
             self.noise_amplifications.append(noise_amplification)
+            self.rec_input_images.append(image)
+            self.rec_input_noises.append(noise)
+
 
     def build_fake_inputs(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
         _, nc, nx, ny = self.images[0][0].shape
-        images = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
-        noises = self.generate_noises([nx, ny], batch_size)
+        image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
+        noise = self.generate_noise([nx, ny], batch_size)
 
         with torch.no_grad():
             for scale, generator in enumerate(self.generators[:scale]):
-                images = generator(noises, images)
+                image = generator(noise, image)
                 bs, nc, nx, ny = self.images[scale+1][0].shape
-                images = torchvision.transforms.functional.resize(images, size=(nx, ny))
-                noises = self.generate_noises([nx, ny], batch_size) * self.noise_amplifications[scale+1]
+                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale + 1]
 
-        return noises, images
+        return noise, image
 
 
 
