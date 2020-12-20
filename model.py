@@ -120,7 +120,7 @@ class MulGAN():
         generator.save()
 
     def build_pyramids(self, out_folder="images"):
-        """Initializes the attributes self.images, self.sizes and self.nscales.
+        """Initializes the attributes self.scaled_images, self.sizes and self.nscales.
         self.sizes is the list of all chosen sizes.
         self.nscales is the number of such scales.
         self.scaled_images is a list of tensors containing the rescaled images,
@@ -163,7 +163,7 @@ class MulGAN():
 
     def build_reconstruction_input(self, scale):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L243
-        _, nc, nx, ny = self.images[scale][0].shape
+        _, nc, nx, ny = self.scaled_images[scale][0].shape
 
         if len(self.rec_input_noises) <= scale:
             rec_input_image_path = os.path.join("images", str(scale), f"rec_input_image.pth")
@@ -193,7 +193,7 @@ class MulGAN():
             if scale == 0:
                 noise_amplification = 1
             else:
-                noise_amplification = torch.sqrt(nn.MSELoss()(image, self.images[scale])).item()
+                noise_amplification = torch.sqrt(nn.MSELoss()(image, self.scaled_images[scale])).item()
             print(f"Noise amplification for scale {scale}: {noise_amplification:.5f}")
             self.noise_amplifications.append(noise_amplification)
             self.rec_input_images.append(image)
@@ -201,14 +201,14 @@ class MulGAN():
 
     def build_fake_inputs(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
-        _, nc, nx, ny = self.images[0][0].shape
+        _, nc, nx, ny = self.scaled_images[0][0].shape
         image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
         noise = self.generate_noise([nx, ny], batch_size)
 
         with torch.no_grad():
             for scale, generator in enumerate(self.generators[:scale]):
                 image = generator(noise, image)
-                bs, nc, nx, ny = self.images[scale+1][0].shape
+                bs, nc, nx, ny = self.scaled_images[scale+1][0].shape
                 image = torchvision.transforms.functional.resize(image, size=(nx, ny))
                 noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale + 1]
 
