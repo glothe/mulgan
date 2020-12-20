@@ -28,7 +28,7 @@ class MulGAN():
         self.nimages = len(self.im_paths)
         self.sizes = []
         self.scaled_images = []
-        self.build_pyramids()
+        self.build_pyramid()
         self.generators = []
 
         # Reconstruction
