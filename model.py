@@ -36,7 +36,7 @@ class MulGAN():
         self.rec_input_noises = []
         self.rec_input_images = []        
 
-    def generate_noises(self, size, batch_size=1):
+    def generate_noise(self, size, batch_size=1):
         noise = torch.randn(batch_size, 1, *size, device=self.device)
         noise = noise.expand(batch_size, 3, *size)
         return noise
@@ -119,7 +119,7 @@ class MulGAN():
         discriminator.save()
         generator.save()
 
-    def build_pyramids(self, out_folder="images"):
+    def build_pyramid(self, out_folder="images"):
         """Initializes the attributes self.scaled_images, self.sizes and self.nscales.
         self.sizes is the list of all chosen sizes.
         self.nscales is the number of such scales.
@@ -199,7 +199,7 @@ class MulGAN():
             self.rec_input_images.append(image)
             self.rec_input_noises.append(noise)
 
-    def build_fake_inputs(self, scale, batch_size=1):
+    def build_fake_input(self, scale, batch_size=1):
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
         _, nc, nx, ny = self.scaled_images[0][0].shape
         image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
