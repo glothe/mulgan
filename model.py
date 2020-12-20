@@ -47,7 +47,7 @@ class MulGAN():
 
         nfc_prev = None
 
-        for scale in range(len(self.images)):
+        for scale in range(self.nscales):
             print(f"Scale: {scale}")
             nfc = min(opt.nfc * pow(2, math.floor(scale / 4)), 128)
             nfc_min = min(opt.nfc_min * pow(2, math.floor(scale / 4)), 128)
