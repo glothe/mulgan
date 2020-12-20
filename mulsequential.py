@@ -1,6 +1,7 @@
 import torch
 import os
 import numpy as np
+from torch import nn
 
 class MulSequential(nn.Sequential):
     """ Base class for Generator & Discriminator. """
