@@ -2,7 +2,7 @@ import argparse
 
 import torch
 
-from model import SinGAN
+from model import MulGAN
 
 
 parser = argparse.ArgumentParser()
@@ -34,5 +34,5 @@ parser.add_argument('--batch_size',type=float, help='fake image batch size',defa
 
 opt = parser.parse_args()
 
-model = SinGAN(opt)
+model = MulGAN(opt)
 model.train()
