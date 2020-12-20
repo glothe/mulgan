@@ -208,7 +208,7 @@ class MulGAN():
         with torch.no_grad():
             for scale, generator in enumerate(self.generators[:scale]):
                 image = generator(noise, image)
-                bs, nc, nx, ny = self.scaled_images[scale+1][0].shape
+                bs, nc, nx, ny = self.scaled_images[scale+1].shape
                 image = torchvision.transforms.functional.resize(image, size=(nx, ny))
                 noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale + 1]
 
