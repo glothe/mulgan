@@ -143,7 +143,7 @@ class MulGAN():
         self.nscales = len(self.sizes)
         # Build all resized images
         self.scaled_images = []
-        for scale, size in enumerate(sizes):
+        for scale, size in enumerate(self.sizes):
             scaled_images = []
             for im_idx, im in enumerate(input_images):
                 # TODO: use bicubic interpolation ?
