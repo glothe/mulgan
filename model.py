@@ -82,7 +82,7 @@ class MulGAN():
     def train_scale(self, scale, discriminator, generator):
         """Train the discriminator and generator for a single scale"""
         opt = self.opt
-        image_real = torch.stack(self.scaled_images[scale]).to(self.device)
+        image_real = self.scaled_images[scale].to(self.device)
 
         # Input for reconstruction loss
         self.build_reconstruction_input(scale)
