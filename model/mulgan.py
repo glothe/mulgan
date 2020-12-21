@@ -223,7 +223,7 @@ class MulGAN():
         return noise, image
 
     def gen_fake_image(self, scale=None):
-        if scale == None:
+        if scale is None:
             scale = len(self.sizes) - 1
         batchsize, nc, nx, ny = self.scaled_images[0].shape
         image = torch.zeros(1, 1, nx, ny, device=self.device)
@@ -238,4 +238,21 @@ class MulGAN():
 
         return denormalize_image(image)
         
-
+    def markov_walk(self, init_pos=None, step_std=1, n_images=10):
+        _, _, nx0, ny0 = self.scaled_images[0].shape
+        if init_pos is None:
+            init_pos = torch.zeros((3, nx0, ny0), device=self.device)
+        if init_pos == "random":
+            init_pos = self.generate_noise([nx0, ny0], n_images)
+        noise = torch.zeros((n_images, 3, nx0, ny0), device=self.device)
+        noise[0] = init_pos
+        for i in range(1, n_images):
+            noise[i] = torch.normal(mean=noise[i - 1], std=step_std)
+        image = torch.zeros(n_images, 3, nx0, ny0, device=self.device)
+        with torch.no_grad():
+            for scale, generator in enumerate(self.generators):
+                image = generator(noise, image)
+                bs, nc, nx, ny = self.scaled_images[scale+1].shape
+                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                noise = self.generate_noise([nx, ny], 1) * self.noise_amplifications[scale + 1]
+        return image
