@@ -1,10 +1,9 @@
 from torch import nn, optim
-from convblock import ConvBlock
-from mulsequential import MulSequential
+
+from model.base import BaseModel, ConvBlock
 
 
-
-class Generator(MulSequential):
+class Generator(BaseModel):
     def __init__(self, nfc: int, nfc_min: int, scale: int, device, opt):
         super().__init__()
         self.scale = scale
@@ -47,27 +46,24 @@ class Generator(MulSequential):
         generated = super().forward(noise + previous_image)
         return generated + previous_image
 
-    def step(self, discriminator, image_real,
-             noise_fake, previous_fake, 
-             noise_reconstruction, previous_reconstruction):
-
+    def step(self, discriminator, real_image,
+             fake_input_noise, fake_input_image, 
+             rec_input_noise, rec_input_image):
         self.zero_grad()
         self.train()
         
-        # Fake generation
-        image_fake = self(noise_fake, previous_fake)
-        # discriminator.eval()
-        output = discriminator(image_fake)
-        errG_gen = -output.mean()
-        errG_gen.backward()  # MEF: that updates discriminator gradients too I think
-        discriminator.zero_grad()
+        # Generation loss
+        fake_image = self(fake_input_noise, fake_input_image)
+        fake_output = discriminator(fake_image)
+        loss_gen = -fake_output.mean()
+        loss_gen.backward()
 
         # Reconstruction
-        image_reconstructed = self(noise_reconstruction, previous_reconstruction)
-        errG_rec = self.opt.alpha * nn.MSELoss()(image_reconstructed, image_real)
-        errG_rec.backward()
+        rec_image = self(rec_input_noise, rec_input_image)
+        loss_rec = 10 * nn.functional.mse_loss(rec_image, real_image)
+        loss_rec.backward()
 
         # Optimizer
         self.optimizer.step()
 
-        return image_reconstructed.detach()
+        return fake_image.detach(), rec_image.detach()

@@ -1,4 +1,0 @@
-!rm balloons.png*
-!git clone "https://TimDarcet@github.com/glothe/mulgan.git"
-!wget https://raw.githubusercontent.com/tamarott/SinGAN/master/Input/Images/balloons.png
-!python mulgan/main.py

@@ -1,10 +1,10 @@
 import torch
 from torch import nn, optim
-from convblock import ConvBlock
-from mulsequential import MulSequential
+
+from model.base import BaseModel, ConvBlock
 
 
-class Discriminator(MulSequential):
+class Discriminator(BaseModel):
     def __init__(self, nfc: int, nfc_min: int, scale: int, device, opt):
         super().__init__()
         self.scale = scale
@@ -52,25 +52,26 @@ class Discriminator(MulSequential):
             grad_outputs=torch.ones(size=output.size(), device=self.device),
             create_graph=True, retain_graph=True, only_inputs=True)[0]
 
-        gradient_penalty = ((gradient.norm(2, dim=1) - 1) ** 2).mean() * self.opt.lambda_grad
-        gradient_penalty.backward()
+        gradient_penalty = ((gradient.norm(2, dim=1) - 1) ** 2).mean()
+        return gradient_penalty
 
-    def step(self, image_real, image_fake):
+    def step(self, real_image, fake_image):
         self.zero_grad()
         self.train()
 
         # Train with real image
-        output = self(image_real)
-        errD_real = -output.mean()
-        errD_real.backward()
+        real_output = self(real_image)
+        loss_real = -real_output.mean()
+        loss_real.backward()
 
         # Train with fake
-        output = self(image_fake)
-        errD_fake = output.mean()
-        errD_fake.backward()
+        fake_output = self(fake_image)
+        loss_fake = fake_output.mean()
+        loss_fake.backward()
 
         # WGAN-GP loss
-        self.gradient_penalty(image_real, image_fake)
+        loss_gp = 0.1 * self.gradient_penalty(real_image, fake_image)
+        loss_gp.backward()
 
         # Optimizer
         self.optimizer.step()
