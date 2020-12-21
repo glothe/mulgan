@@ -222,5 +222,20 @@ class MulGAN():
 
         return noise, image
 
+    def gen_fake_image(self, scale=None):
+        if scale == None:
+            scale = len(self.sizes) - 1
+        batchsize, nc, nx, ny = self.scaled_images[0].shape
+        image = torch.zeros(1, 1, nx, ny, device=self.device)
+        noise = self.generate_noise([nx, ny], 1)
 
+        with torch.no_grad():
+            for scale, generator in enumerate(self.generators[:scale + 1]):
+                image = generator(noise, image)
+                bs, nc, nx, ny = self.scaled_images[scale+1].shape
+                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                noise = self.generate_noise([nx, ny], 1) * self.noise_amplifications[scale + 1]
+
+        return denormalize_image(image)
+        
 

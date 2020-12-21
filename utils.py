@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 def normalize_image(image):
     return (image * 2 - 1).clamp(-1, 1)
 
@@ -18,3 +20,6 @@ def generate_sizes(max_size=250, min_size=25, scale_factor=0.75):
 
     print(sizes)
     return sizes[::-1]
+
+def display_image(image):
+    plt.imshow(image.permute(1, 2, 0))
