@@ -42,8 +42,8 @@ class MulGAN():
         self.rec_input_images = []        
 
     def generate_noise(self, size: tuple, batch_size: int = 1):
-        noise = torch.randn(batch_size, 1, *size, device=self.device)
-        noise = noise.expand(batch_size, 3, *size)
+        noise = torch.randn(batch_size, 3, *size, device=self.device)
+        # noise = noise.expand(batch_size, 3, *size)
         return noise
 
     def train(self):

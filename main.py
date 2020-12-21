@@ -14,6 +14,7 @@ parser.add_argument('--images', nargs='*', type=str, help='Paths of images to us
 parser.add_argument('--nfc', type=int, default=32)
 parser.add_argument('--nfc_min', type=int, default=32)
 parser.add_argument('--num_layers', type=int, help='number of layers', default=5)
+parser.add_argument("--gan_type", type=str, default="zero-gp")
 
 # Pyramid parameters:
 parser.add_argument('--scale_factor',type=float,help='pyramid scale factor', default=0.75)

@@ -5,7 +5,10 @@ from torch import nn
 
 
 class ConvBlock(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size: int = 3, padding: int = 0, batch_norm=True):
+    def __init__(self, in_channels, out_channels, 
+                 kernel_size: int = 3, 
+                 padding: int = 0, 
+                 batch_norm: bool = True):
         super().__init__()
         self.add_module("conv", nn.Conv2d(in_channels, out_channels, 
             kernel_size=kernel_size, 

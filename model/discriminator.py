@@ -48,30 +48,62 @@ class Discriminator(BaseModel):
         interpolation.requires_grad = True
 
         output = self(interpolation)
-        gradient = torch.autograd.grad(output, interpolation, 
-            grad_outputs=torch.ones(size=output.size(), device=self.device),
+        gradient = torch.autograd.grad(output.sum(), interpolation,
             create_graph=True, retain_graph=True, only_inputs=True)[0]
 
         gradient_penalty = ((gradient.norm(2, dim=1) - 1) ** 2).mean()
+        return gradient_penalty
+
+    def gradient_penalty_zero(self, real_image, real_output):
+        batch_size = real_image.shape[0]
+
+        gradient = torch.autograd.grad(
+            outputs=real_output.sum(), inputs=real_image,
+            create_graph=True, retain_graph=True, only_inputs=True)[0]
+
+        gradient_penalty = gradient.pow(2).view(batch_size, -1).sum(1)
         return gradient_penalty
 
     def step(self, real_image, fake_image):
         self.zero_grad()
         self.train()
 
-        # Train with real image
-        real_output = self(real_image)
-        loss_real = -real_output.mean()
-        loss_real.backward()
+        # https://github.com/FriedRonaldo/SinGAN/blob/master/code/train.py#L108
+        if self.opt.gan_type == "wgan-gp":
+            # Train with real image
+            real_output = self(real_image)
+            loss_real = -real_output.mean()
+            loss_real.backward()
 
-        # Train with fake
-        fake_output = self(fake_image)
-        loss_fake = fake_output.mean()
-        loss_fake.backward()
+            # Train with fake
+            fake_output = self(fake_image)
+            loss_fake = fake_output.mean()
+            loss_fake.backward()
 
-        # WGAN-GP loss
-        loss_gp = 0.1 * self.gradient_penalty(real_image, fake_image)
-        loss_gp.backward()
+            # WGAN-GP loss
+            loss_gp = 0.1 * self.gradient_penalty(real_image, fake_image)
+            loss_gp.backward()
+
+        elif self.opt.gan_type == "zero-gp":
+            # Train with fake
+            fake_output = self(fake_image)
+            zeros = torch.zeros_like(fake_output, device=self.device)
+            loss_fake = nn.functional.binary_cross_entropy_with_logits(fake_output, zeros, reduction='none').mean()
+
+            # Train with real image
+            real_image.requires_grad = True
+            real_output = self(real_image)
+            ones = torch.ones_like(real_output, device=self.device)
+            loss_real = nn.functional.binary_cross_entropy_with_logits(real_output, ones, reduction='none').mean()
+
+            # Zero-GP loss
+            loss_gp = self.gradient_penalty_zero(real_image, torch.mean(real_output, (2, 3)))
+            
+            loss = loss_fake + loss_real + 10 * loss_gp
+            loss.backward()
+
+            real_image.requires_grad = False
+            real_image.grad = None
 
         # Optimizer
         self.optimizer.step()

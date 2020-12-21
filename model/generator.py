@@ -1,3 +1,4 @@
+import torch
 from torch import nn, optim
 
 from model.base import BaseModel, ConvBlock
@@ -15,7 +16,8 @@ class Generator(BaseModel):
         self.add_module("head", ConvBlock(
             in_channels=opt.nc_image, 
             out_channels=N, 
-            padding=1))
+            padding=1,
+            batch_norm=False))
     
         for i in range(opt.num_layers - 2):
             N = int(nfc / 2 ** (i+1))
@@ -23,6 +25,7 @@ class Generator(BaseModel):
                 in_channels=max(2*N, nfc_min),
                 out_channels=max(N, nfc_min),
                 padding=1,
+                batch_norm=False
             )
             self.add_module(f"block{i+1:d}", block)
         
@@ -52,16 +55,31 @@ class Generator(BaseModel):
         self.zero_grad()
         self.train()
         
-        # Generation loss
-        fake_image = self(fake_input_noise, fake_input_image)
-        fake_output = discriminator(fake_image)
-        loss_gen = -fake_output.mean()
-        loss_gen.backward()
+        # https://github.com/FriedRonaldo/SinGAN/blob/master/code/train.py#L89
+        if self.opt.gan_type == "wgan-gp":
+            # Generation loss
+            fake_image = self(fake_input_noise, fake_input_image)
+            fake_output = discriminator(fake_image)
+            loss_gen = -fake_output.mean()
+            loss_gen.backward()
 
-        # Reconstruction
-        rec_image = self(rec_input_noise, rec_input_image)
-        loss_rec = 10 * nn.functional.mse_loss(rec_image, real_image)
-        loss_rec.backward()
+            # Reconstruction
+            rec_image = self(rec_input_noise, rec_input_image)
+            loss_rec = 10 * nn.functional.mse_loss(rec_image, real_image)
+            loss_rec.backward()
+        
+        elif self.opt.gan_type == "zero-gp":
+            # Generation loss
+            fake_image = self(fake_input_noise, fake_input_image)
+            fake_output = discriminator(fake_image)
+            ones = torch.ones_like(fake_output, device=self.device)
+            loss_gen = nn.functional.binary_cross_entropy_with_logits(fake_output, ones, reduction='none').mean()
+            loss_gen.backward()
+
+            # Reconstruction
+            rec_image = self(rec_input_noise, rec_input_image)
+            loss_rec = 100 * nn.functional.mse_loss(rec_image, real_image)
+            loss_rec.backward()
 
         # Optimizer
         self.optimizer.step()
