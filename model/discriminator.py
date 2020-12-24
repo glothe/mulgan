@@ -97,7 +97,7 @@ class Discriminator(BaseModel):
             loss_real = nn.functional.binary_cross_entropy_with_logits(real_output, ones, reduction='none').mean()
 
             # Zero-GP loss
-            loss_gp = self.gradient_penalty_zero(real_image, torch.mean(real_output, (2, 3)))
+            loss_gp = self.gradient_penalty_zero(real_image, torch.mean(real_output, (2, 3))).mean()
             
             loss = loss_fake + loss_real + 10 * loss_gp
             loss.backward()
