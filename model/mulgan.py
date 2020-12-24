@@ -261,5 +261,7 @@ class MulGAN():
         return gen(noises, n_images)
 
     def interpolate(self, freq=2):
-        for i in range(len(self.))#TODO
+        for i in range(len(self.impaths)):
+            pass  # TODO
+
 
