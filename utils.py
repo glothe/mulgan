@@ -26,4 +26,4 @@ def display_image(image):
 
 def display_images(imbatch):
     for i in range(imbatch.shape[0]):
-        display_image(imbatch[i])
+        display_image(imbatch[i].cpu())
