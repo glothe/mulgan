@@ -253,12 +253,13 @@ class MulGAN():
                 _, _, nx, ny = self.scaled_images[i].shape
                 init_pos.append(self.generate_noise([nx, ny], 1))
         noises = []
-        for i in range(self.nscales):
-            _, _, nx, ny = self.scaled_images[i].shape
-            noises = torch.zeros((n_images, 3, nx, ny), device=self.device)
-            noises[0] = init_pos[i]
+        for scale in range(self.nscales):
+            _, _, nx, ny = self.scaled_images[scale].shape
+            noise = torch.zeros((n_images, 3, nx, ny), device=self.device)
+            noise[0] = init_pos[scale]
             for i in range(1, n_images):
-                noises[i] = torch.normal(mean=noises[i - 1], std=step_std)
+                noise[i] = torch.normal(mean=noises[i - 1], std=step_std)
+            noises.append(noise)
         return self.gen(noises, n_images)
 
     def interpolate(self, freq=2):
