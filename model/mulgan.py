@@ -258,7 +258,7 @@ class MulGAN():
             noise = torch.zeros((n_images, 3, nx, ny), device=self.device)
             noise[0] = init_pos[scale]
             for i in range(1, n_images):
-                noise[i] = torch.normal(mean=noises[i - 1], std=step_std)
+                noise[i] = torch.normal(mean=noise[i - 1], std=step_std)
             noises.append(noise)
         return self.gen(noises, n_images)
 
