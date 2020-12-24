@@ -239,8 +239,8 @@ class MulGAN():
         for i in range(self.nscales):
             _, _, nx, ny = self.scaled_images[i].shape
             noises.append(self.generate_noise([nx, ny], 1) * self.noise_amplifications[i])
-        return denormalize_image(self.gen(noises))
-        
+        return self.gen(noises)
+
     def markov_walk(self, init_pos="zeros", step_std=1, n_images=10):
         if init_pos == "zeros":
             init_pos = []
@@ -258,11 +258,8 @@ class MulGAN():
             noises = torch.zeros((n_images, 3, nx, ny), device=self.device)
             noises[0] = init_pos[i]
             for i in range(1, n_images):
-                # if type(step_std) is int:
-                #     step_std = float(step_std)
                 noises[i] = torch.normal(mean=noises[i - 1], std=step_std)
-            print(noises)
-        return gen(noises, n_images)
+        return self.gen(noises, n_images)
 
     def interpolate(self, freq=2):
         for i in range(len(self.impaths)):

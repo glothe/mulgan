@@ -22,8 +22,8 @@ def generate_sizes(max_size=250, min_size=25, scale_factor=0.75):
     return sizes[::-1]
 
 def display_image(image):
-    plt.imshow(image.permute(1, 2, 0))
+    plt.imshow(denormalize_image(image.cpu()).permute(1, 2, 0))
 
 def display_images(imbatch):
     for i in range(imbatch.shape[0]):
-        display_image(imbatch[i].cpu())
+        display_image(imbatch[i])
