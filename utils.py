@@ -28,6 +28,9 @@ def display_image(image, ax=plt):
 def display_images(imbatch):
     n_im = imbatch.shape[0]
     n_rows = n_im // 4 + 1
-    fig, axes = plt.subplots(n_rows, 4, squeeze=False)
+    fig, axes = plt.subplots(n_rows, 4, squeeze=False, figsize=(19.2, 14.4))
+    for r in range(n_rows):
+        for c in range(4):
+            axes[r][c].axis("off")
     for i in range(imbatch.shape[0]):
         display_image(imbatch[i], axes[i // 4][i % 4])
