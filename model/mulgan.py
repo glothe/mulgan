@@ -253,14 +253,16 @@ class MulGAN():
             init_pos = []
             for i in range(self.nscales):
                 _, _, nx, ny = self.scaled_images[i].shape
-                init_pos.append(self.generate_noise([nx, ny], 1))
+                init_pos.append(self.generate_noise([nx, ny], 1) * self.noise_amplifications[i])
         noises = []
         for scale in range(self.nscales):
             _, _, nx, ny = self.scaled_images[scale].shape
             noise = torch.zeros((n_images, 3, nx, ny), device=self.device)
             noise[0] = init_pos[scale]
             for i in range(1, n_images):
-                noise[i] = torch.normal(mean=noise[i - 1], std=step_std)
+                # TODO: Find better way of sampling along the distribution we are supposed to sample
+                # That is, centered gaussian with std self.noise_amplifications[scale]
+                noise[i] = noise[i - 1] + torch.normal(mean=torch.zeros_like(noise[i - 1]), std=step_std) * self.noise_amplifications[scale]
             noises.append(noise)
         return self.gen(noises, n_images)
 
