@@ -223,8 +223,8 @@ class MulGAN():
         return noise, image
 
     def gen(self, noises, batch_size=1):
-        batchsize, nc, nx, ny = self.scaled_images[0].shape
-        image = torch.zeros(batch_size, 1, nx, ny, device=self.device)
+        assert len(noises) == self.nscales
+        image = torch.zeros(batch_size, 1, 1, 1, device=self.device)
         with torch.no_grad():
             for scale, generator in enumerate(self.generators):
                 _, _, nx, ny = self.scaled_images[scale].shape
@@ -241,20 +241,21 @@ class MulGAN():
             noises.append(self.generate_noise([nx, ny], 1) * self.noise_amplifications[i])
         return denormalize_image(self.gen(noises))
         
-    def markov_walk(self, init_pos=None, step_std=1, n_images=10):
-        if init_pos is None:
+    def markov_walk(self, init_pos="zeros", step_std=1, n_images=10):
+        if init_pos == "zeros":
             init_pos = []
             for i in range(self.nscales):
                 _, _, nx, ny = self.scaled_images[i].shape
                 init_pos.append(torch.zeros((3, nx, ny), device=self.device))
-        if init_pos == "random":
+        elif init_pos == "random":
             init_pos = []
             for i in range(self.nscales):
                 _, _, nx, ny = self.scaled_images[i].shape
                 init_pos.append(self.generate_noise([nx, ny], 1))
         noises = []
         for i in range(self.nscales):
-            noises = torch.zeros((n_images, 3, nx0, ny0), device=self.device)
+            _, _, nx, ny = self.scaled_images[i].shape
+            noises = torch.zeros((n_images, 3, nx, ny), device=self.device)
             noises[0] = init_pos[i]
             for i in range(1, n_images):
                 noises[i] = torch.normal(mean=noises[i - 1], std=step_std, device=self.device)
