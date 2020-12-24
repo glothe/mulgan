@@ -182,7 +182,8 @@ class MulGAN():
                 # Generate reconstruction inputs
                 if scale == 0:
                     image = torch.zeros(self.nimages, 1, 1, 1, device=self.device)
-                    noise = self.generate_noise([nx, ny], self.nimages)  # TODO: Find better reconstruction inputs, this is too random
+                    noise = self.generate_noise([nx, ny], self.nimages) * self.noise_amplifications[scale]
+                    # TODO: Find better reconstruction inputs, this is too random
                 else:
                     rec_input_image = self.rec_input_images[scale - 1]
                     rec_input_noise = self.rec_input_noises[scale - 1]
@@ -211,7 +212,7 @@ class MulGAN():
         # https://github.com/tamarott/SinGAN/blob/master/SinGAN/training.py#L224
         batchsize, nc, nx, ny = self.scaled_images[0].shape
         image = torch.zeros(batch_size, 1, nx, ny, device=self.device)   
-        noise = self.generate_noise([nx, ny], batch_size)
+        noise = self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[0]
 
         with torch.no_grad():
             for scale, generator in enumerate(self.generators[:scale]):
@@ -232,16 +233,22 @@ class MulGAN():
                 image = generator(noises[scale], image)
         return image
 
-    def gen_random_image(self, scale=None):
+    def gen_random_image(self, scale=None, batch_size=1, scales_to_sample="only0"):
+        assert scales_to_sample in ["only0", "all"]
         if scale is None:
             scale = len(self.sizes) - 1
         noises = []
-        for i in range(self.nscales):
-            _, _, nx, ny = self.scaled_images[i].shape
-            noises.append(self.generate_noise([nx, ny], 1) * self.noise_amplifications[i])
-        return self.gen(noises)
+        for scale in range(self.nscales):
+            _, _, nx, ny = self.scaled_images[scale].shape
+            if scales_to_sample == "only0" or scale == 0:
+                noises.append(self.generate_noise([nx, ny], batch_size) * self.noise_amplifications[scale])
+            else:
+                noises.append(torch.zeros((batch_size, nx, ny), device=self.device))
+        return self.gen(noises, batch_size)
 
-    def markov_walk(self, init_pos="rec", step_std=1, n_images=10):
+    def markov_walk(self, init_pos="rec", step_std=1, n_images=10, scales_to_sample="only0"):
+        assert init_pos in ["rec", "zeros", "random"] or type(init_pos) is list
+        assert scales_to_sample in ["only0", "all"]
         if init_pos == "rec":
             init_pos = self.rec_input_noises
         elif init_pos == "zeros":
@@ -258,12 +265,13 @@ class MulGAN():
         for scale in range(self.nscales):
             _, _, nx, ny = self.scaled_images[scale].shape
             noise = torch.zeros((n_images, 3, nx, ny), device=self.device)
-            noise[0] = init_pos[scale]
-            for i in range(1, n_images):
-                # TODO: Find better way of sampling along the distribution we are supposed to sample
-                # That is, centered gaussian with std self.noise_amplifications[scale]
-                noise[i] = noise[i - 1] + torch.normal(mean=torch.zeros_like(noise[i - 1]), std=step_std) * self.noise_amplifications[scale]
-            noises.append(noise)
+            if scales_to_sample == "all" or scale == 0:
+                noise[0] = init_pos[scale]
+                for i in range(1, n_images):
+                    # TODO: Find better way of sampling along the distribution we are supposed to sample
+                    # That is, centered gaussian with std self.noise_amplifications[scale]
+                    noise[i] = noise[i - 1] + torch.normal(mean=torch.zeros_like(noise[i - 1]), std=step_std) * self.noise_amplifications[scale]
+            noises.append(noise)  
         return self.gen(noises, n_images)
 
     def interpolate(self, freq=2):
