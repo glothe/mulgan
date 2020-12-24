@@ -98,7 +98,7 @@ class Discriminator(BaseModel):
 
             # Zero-GP loss
             loss_gp = self.gradient_penalty_zero(real_image, torch.mean(real_output, (2, 3))).mean()
-            
+            print(loss_real, loss_fake, loss_gp)
             loss = loss_fake + loss_real + 10 * loss_gp
             loss.backward()
 
