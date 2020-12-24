@@ -182,7 +182,7 @@ class MulGAN():
                 # Generate reconstruction inputs
                 if scale == 0:
                     image = torch.zeros(self.nimages, 1, 1, 1, device=self.device)
-                    noise = self.generate_noise([nx, ny], self.nimages) * self.noise_amplifications[scale]
+                    noise = self.generate_noise([nx, ny], self.nimages)
                     # TODO: Find better reconstruction inputs, this is too random
                 else:
                     rec_input_image = self.rec_input_images[scale - 1]
