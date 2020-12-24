@@ -227,9 +227,9 @@ class MulGAN():
         image = torch.zeros(batch_size, 1, nx, ny, device=self.device)
         with torch.no_grad():
             for scale, generator in enumerate(self.generators):
-                image = generator(noises[scale], image)
-                _, _, nx, ny = self.scaled_images[scale+1].shape
+                _, _, nx, ny = self.scaled_images[scale].shape
                 image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                image = generator(noises[scale], image)
         return image
 
     def gen_random_image(self, scale=None):
@@ -259,3 +259,7 @@ class MulGAN():
             for i in range(1, n_images):
                 noises[i] = torch.normal(mean=noises[i - 1], std=step_std, device=self.device)
         return gen(noises, n_images)
+
+    def interpolate(self, freq=2):
+        for i in range(len(self.))#TODO
+
