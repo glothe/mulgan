@@ -241,8 +241,10 @@ class MulGAN():
             noises.append(self.generate_noise([nx, ny], 1) * self.noise_amplifications[i])
         return self.gen(noises)
 
-    def markov_walk(self, init_pos="zeros", step_std=1, n_images=10):
-        if init_pos == "zeros":
+    def markov_walk(self, init_pos="rec", step_std=1, n_images=10):
+        if init_pos == "rec":
+            init_pos = self.rec_input_noises
+        elif init_pos == "zeros":
             init_pos = []
             for i in range(self.nscales):
                 _, _, nx, ny = self.scaled_images[i].shape
