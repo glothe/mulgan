@@ -258,9 +258,10 @@ class MulGAN():
             noises = torch.zeros((n_images, 3, nx, ny), device=self.device)
             noises[0] = init_pos[i]
             for i in range(1, n_images):
-                if type(step_std) is int:
-                    step_std = float(step_std)
-                noises[i] = torch.normal(mean=noises[i - 1], std=step_std, device=self.device)
+                # if type(step_std) is int:
+                #     step_std = float(step_std)
+                noises[i] = torch.normal(mean=noises[i - 1], std=step_std)
+            print(noises)
         return gen(noises, n_images)
 
     def interpolate(self, freq=2):
