@@ -50,7 +50,7 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
         save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i}.png")
     try:
         ffmpeg\
-            .input(f'./videos/tmp/{out_fn}', pattern_type="glob", framerate=fps)\
+            .input(f'./videos/tmp/tmpim_*.png', pattern_type="glob", framerate=fps)\
             .output(f"videos/{outfile}")\
             .run(capture_stdout=True, capture_stderr=True)
     except ffmpeg.Error as e:
