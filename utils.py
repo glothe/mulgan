@@ -52,7 +52,7 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
     try:
         ffmpeg\
             .input(f'./videos/tmp/tmpim_*.png', pattern_type="glob", framerate=fps)\
-            .output(f"videos/{out_fn_formatted}")\
+            .output(out_fn_formatted)\
             .run(capture_stdout=True, capture_stderr=True)
     except ffmpeg.Error as e:
         print('stdout:', e.stdout.decode('utf8'))
