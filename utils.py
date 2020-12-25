@@ -48,7 +48,7 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
     out_fn_formatted = next(filterfalse(os.path.exists, map(full_outfile.format, count())))
     print(f"Writing video to {out_fn_formatted}")
     for i in range(imbatch.shape[0]):
-        save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i}.png")
+        save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i:04d}.png")
     try:
         ffmpeg\
             .input(f'./videos/tmp/tmpim_*.png', pattern_type="glob", framerate=fps)\
