@@ -250,7 +250,7 @@ class MulGAN():
         assert init_pos in ["rec", "zeros", "random"] or type(init_pos) is list
         assert scales_to_sample in ["only0", "all"]
         if init_pos == "rec":
-            init_pos = self.rec_input_noises
+            init_pos = [rin[0] for rin in self.rec_input_noises]
         elif init_pos == "zeros":
             init_pos = []
             for i in range(self.nscales):
