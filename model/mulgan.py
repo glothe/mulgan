@@ -223,6 +223,19 @@ class MulGAN():
 
         return noise, image
 
+    def gen_only0(self, noise):
+        batch_size = noise.shape[0]
+        image = torch.zeros(batch_size, 1, 1, 1, device=self.device)
+        with torch.no_grad():
+            for scale, generator in enumerate(self.generators):
+                _, _, nx, ny = self.scaled_images[scale].shape
+                image = torchvision.transforms.functional.resize(image, size=(nx, ny))
+                if scale == 0:
+                    image = generator(noise, image)
+                else:
+                    image = generator(torch.zeros_like(image), image)    
+        return image
+
     def gen(self, noises, batch_size=1):
         assert len(noises) == self.nscales
         image = torch.zeros(batch_size, 1, 1, 1, device=self.device)
@@ -274,8 +287,17 @@ class MulGAN():
             noises.append(noise)  
         return self.gen(noises, n_images)
 
-    def interpolate(self, freq=2):
-        for i in range(len(self.impaths)):
-            pass  # TODO
-
+    def linear_interpolate(self, freq=2):
+        # Just shift the input noises a step towards the left so that
+        # the interpolations we want are between this_frame_in[i] and next_frame_in[i]
+        this_frame_in = self.rec_input_noises[0][:-1]
+        next_frame_in = self.rec_input_noises[0][1:]
+        interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=self.device)
+        for i, t in enumerate(torch.linspace(0, 1, freq)):
+            interpolated_noises[i] = (1 - t) * this_frame_in + t * next_frame_in
+        # interpolated_noises is now a tensor of all the frames with the first dimension corresponding to the t
+        # We need to interleave the first two dimensions to get a batch of the right input noises
+        interpolated_noises.transpose_(0, 1)
+        interpolated_noises = interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
+        return self.gen_only0(mg, interpolated_noises)
 
