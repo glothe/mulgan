@@ -299,5 +299,5 @@ class MulGAN():
         # We need to interleave the first two dimensions to get a batch of the right input noises
         interpolated_noises.transpose_(0, 1)
         interpolated_noises = interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
-        return self.gen_only0(mg, interpolated_noises)
+        return self.gen_only0(interpolated_noises)
 
