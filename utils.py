@@ -45,6 +45,7 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
     rmtree('./videos/tmp', ignore_errors=True)
     os.makedirs("./videos/tmp", exist_ok=True)
     out_fn = next(filterfalse(os.path.exists, map(outfile.format, count())))
+    print(f"Writing video to {out_fn}")
     for i in range(imbatch.shape[0]):
         save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i}.png")
     ff_worker = ffmpeg.input(f'./videos/tmp/{out_fn}', pattern_type="glob", framerate=fps)
