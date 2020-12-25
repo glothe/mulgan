@@ -1,4 +1,8 @@
 import matplotlib.pyplot as plt
+from torchvision.utils import save_image
+from os import makedirs
+from shutil import rmtree
+import ffmpeg
 
 def normalize_image(image):
     return (image * 2 - 1).clamp(-1, 1)
@@ -34,3 +38,11 @@ def display_images(imbatch):
             axes[r][c].axis("off")
     for i in range(imbatch.shape[0]):
         display_image(imbatch[i], axes[i // 4][i % 4])
+
+def save_as_video(imbatch, fps=24, outfile="movie.mp4"):
+    makedirs("./videos/tmp", exist_ok=True)
+    for i in range(imbatch.shape[0]):
+        save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i}.png")
+    ff_worker = ffmpeg.input('./videos/tmp/tmpim_*.png', pattern_type="glob", framerate=fps)
+    ff_worker.output(f"videos/{outfile}").run()
+    rmtree('./videos/tmp')
