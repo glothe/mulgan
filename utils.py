@@ -44,7 +44,8 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
     os.makedirs("./videos", exist_ok=True)
     rmtree('./videos/tmp', ignore_errors=True)
     os.makedirs("./videos/tmp", exist_ok=True)
-    out_fn_formatted = next(filterfalse(os.path.exists, map(outfile.format, count())))
+    full_outfile = f"videos/{outfile}"
+    out_fn_formatted = next(filterfalse(os.path.exists, map(full_outfile.format, count())))
     print(f"Writing video to {out_fn_formatted}")
     for i in range(imbatch.shape[0]):
         save_image(denormalize_image(imbatch[i]), f"./videos/tmp/tmpim_{i}.png")
