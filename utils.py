@@ -119,8 +119,8 @@ def linear_mean_std_interpolator(tensor_batch, freq, device):
     start_means = torch.mean(this_frame_in, dim=(2, 3))
     start_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
     next_frame_in = tensor_batch[1:]
-    end_means = torch.mean(this_frame_in, dim=(2, 3))
-    end_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
+    end_means = torch.mean(next_frame_in, dim=(2, 3))
+    end_stds = torch.norm(next_frame_in - end_means[:, :, None, None], dim=(2, 3))
 
     interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
     for i, t in enumerate(torch.linspace(0, 1, freq)):
@@ -129,8 +129,8 @@ def linear_mean_std_interpolator(tensor_batch, freq, device):
         reduced = interpolated_noises[i] - mean[:, :, None, None]
         std = torch.norm(reduced, dim=(2, 3))
         reduced = reduced / std[:, :, None, None]
-        reduced *= (1 - t) * start_stds + t * end_stds
-        reduced += (1 - t) * start_means + t * end_means
+        reduced *= ((1 - t) * start_stds + t * end_stds)[:, :, None, None]
+        reduced += ((1 - t) * start_means + t * end_means)[:, :, None, None]
         interpolated_noises[i] = reduced
     interpolated_noises.transpose_(0, 1)
     return interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
