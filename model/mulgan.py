@@ -289,7 +289,7 @@ class MulGAN():
             noises.append(noise)  
         return self.gen(noises, n_images)
 
-    def linear_interpolate(self, freq=2):
+    def linear_interpolate(self, freq=2, batch_size=8):
         # Just shift the input noises a step towards the left so that
         # the interpolations we want are between this_frame_in[i] and next_frame_in[i]
         this_frame_in = self.rec_input_noises[0][:-1]
@@ -310,7 +310,7 @@ class MulGAN():
         return out
         return self.gen_only0(interpolated_noises)
 
-    def cubic_interpolate(self, freq=2):
+    def cubic_interpolate(self, freq=2, batch_size=8):
         xs = range(self.nimages)
         ys = self.rec_input_noises[0]
         interpolator = CubicSpline(xs, ys.cpu().numpy())
