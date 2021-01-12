@@ -305,6 +305,9 @@ class MulGAN():
 
     def cubic_interpolate(self, freq=2, batch_size=8):
         return self.interpolate(cubic_interpolator, freq, batch_size)
+
+    def sine_interpolate(self, freq=2, batch_size=8):
+        return self.interpolate(sine_interpolator, freq, batch_size)
     
     def linear_norm_interpolate(self, freq=2, batch_size=8):
         return self.interpolate(linear_norm_interpolator, freq, batch_size)
