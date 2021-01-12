@@ -4,6 +4,7 @@ import os
 from shutil import rmtree
 import ffmpeg
 from itertools import count, filterfalse
+from math import sin, cos, pi
 
 def normalize_image(image):
     return (image * 2 - 1).clamp(-1, 1)
@@ -59,3 +60,76 @@ def save_as_video(imbatch, fps=24, outfile="movie_{}.mp4"):
         print('stderr:', e.stderr.decode('utf8'))
         raise e
     rmtree('./videos/tmp')
+
+def cubic_interpolator(tensor_batch, freq, device):
+    out_length = (tensor_batch.shape[0] - 1) * freq
+    xs = range(tensor_batch.shape[0])
+    interpolator = CubicSpline(xs, tensor_batch.cpu().numpy())
+    new_noises = interpolator(torch.linspace(0, tensor_batch.shape[0] - 1, out_length))
+    return torch.tensor(new_noises, device=device, dtype=torch.float32)
+
+def linear_interpolator(tensor_batch, freq, device):
+    # Just shift the input noises a step towards the left so that
+    # the interpolations we want are between this_frame_in[i] and next_frame_in[i]
+    out_length = (tensor_batch.shape[0] - 1) * freq
+    this_frame_in = tensor_batch[:-1]
+    next_frame_in = tensor_batch[1:]
+    interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
+    for i, t in enumerate(torch.linspace(0, 1, freq)):
+        interpolated_noises[i] = (1 - t) * this_frame_in + t * next_frame_in
+    # interpolated_noises is now a tensor of all the frames with the first dimension corresponding to the t
+    # We need to interleave the first two dimensions to get a batch of the right input noises
+    interpolated_noises.transpose_(0, 1)
+    return interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
+
+def sine_interpolator(tensor_batch, freq, device):
+    # Just shift the input noises a step towards the left so that
+    # the interpolations we want are between this_frame_in[i] and next_frame_in[i]
+    out_length = (tensor_batch.shape[0] - 1) * freq
+    this_frame_in = tensor_batch[:-1]
+    next_frame_in = tensor_batch[1:]
+    interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
+    for i, t in enumerate(torch.linspace(0, 1, freq)):
+        interpolated_noises[i] = cos(0.5 * pi * t) * this_frame_in + sin(0.5 * pi * t) * next_frame_in
+    # interpolated_noises is now a tensor of all the frames with the first dimension corresponding to the t
+    # We need to interleave the first two dimensions to get a batch of the right input noises
+    interpolated_noises.transpose_(0, 1)
+    return interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
+
+def linear_norm_interpolator(tensor_batch, freq, device):
+    out_length = (tensor_batch.shape[0] - 1) * freq
+    this_frame_in = tensor_batch[:-1]
+    start_norms = torch.norm(this_frame_in, dim=(2, 3))
+    next_frame_in = tensor_batch[1:]
+    end_norms = torch.norm(next_frame_in, dim=(2, 3))
+    interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
+    for i, t in enumerate(torch.linspace(0, 1, freq)):
+        interpolated_noises[i] = (1 - t) * this_frame_in + t * next_frame_in
+        coef = ((1 - t) * start_norms + t * end_norms) / torch.norm(interpolated_noises[i], dim=(2, 3))
+        interpolated_noises[i] *= coef[:, :, None, None]
+    interpolated_noises.transpose_(0, 1)
+    return interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
+
+def linear_mean_std_interpolator(tensor_batch, freq, device):
+    # Calculate summary statistics
+    out_length = (tensor_batch.shape[0] - 1) * freq
+    this_frame_in = tensor_batch[:-1]
+    start_means = torch.mean(this_frame_in, dim=(2, 3))
+    start_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
+    next_frame_in = tensor_batch[1:]
+    start_means = torch.mean(this_frame_in, dim=(2, 3))
+    start_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
+
+    interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
+    for i, t in enumerate(torch.linspace(0, 1, freq)):
+        interpolated_noises[i] = (1 - t) * this_frame_in + t * next_frame_in
+        mean = torch.mean(interpolated_noises[i], dim=(2, 3))
+        reduced = interpolated_noises[i] - mean[:, :, None, None]
+        std = torch.norm(reduced, dim=(2, 3))
+        reduced = reduced / std[:, :, None, None]
+        reduced *= (1 - t) * start_stds + t * end_stds
+        reduced += (1 - t) * start_means + t * end_means
+        interpolated_noises[i] = reduced
+    interpolated_noises.transpose_(0, 1)
+    return interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
+
