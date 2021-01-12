@@ -12,6 +12,8 @@ from model.generator import Generator
 from model.discriminator import Discriminator
 from utils import *
 
+from scipy.interpolate import CubicSpline
+
 
 # Assumption for MulGAN: All images have the same size, and they are somehow coherent
 # (frames of a video, different points of view of a scene taken from different angles...)
@@ -300,4 +302,12 @@ class MulGAN():
         interpolated_noises.transpose_(0, 1)
         interpolated_noises = interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
         return self.gen_only0(interpolated_noises)
+
+    def cubic_interpolate(self, freq=2):
+        xs = range(self.nimages)
+        ys = self.rec_input_noises[0]
+        interpolator = CubicSpline(xs, ys)
+        new_noises = interpolator(torch.linspace(0, self.nimages - 1, self.nimages * freq))
+        new_t_noises = torch.tensor(new_noises)
+        return self.gen_only0(new_t_noises)
 
