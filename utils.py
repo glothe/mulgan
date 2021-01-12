@@ -5,6 +5,8 @@ from shutil import rmtree
 import ffmpeg
 from itertools import count, filterfalse
 from math import sin, cos, pi
+import torch
+
 
 def normalize_image(image):
     return (image * 2 - 1).clamp(-1, 1)
