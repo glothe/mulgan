@@ -292,6 +292,7 @@ class MulGAN():
     def linear_interpolate(self, freq=2, batch_size=8):
         # Just shift the input noises a step towards the left so that
         # the interpolations we want are between this_frame_in[i] and next_frame_in[i]
+        out_length = (self.nimages - 1) * freq
         this_frame_in = self.rec_input_noises[0][:-1]
         next_frame_in = self.rec_input_noises[0][1:]
         interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=self.device)
@@ -301,26 +302,27 @@ class MulGAN():
         # We need to interleave the first two dimensions to get a batch of the right input noises
         interpolated_noises.transpose_(0, 1)
         interpolated_noises = interpolated_noises.reshape(-1, *interpolated_noises.shape[2:])
-        out = torch.zeros((self.nimages * freq, *self.scaled_images[-1].shape[1:]))
-        n_batches = self.nimages * freq // batch_size
+        out = torch.zeros((out_length, *self.scaled_images[-1].shape[1:]))
+        n_batches = out_length // batch_size
         for batch_idx in range(n_batches):
             out[batch_idx * batch_size : (batch_idx + 1) * batch_size] = self.gen_only0(interpolated_noises[batch_idx * batch_size : (batch_idx + 1) * batch_size])
-        if n_batches * batch_size < self.nimages * freq:
+        if n_batches * batch_size < out_length:
             out[n_batches * batch_size:] = self.gen_only0(interpolated_noises[n_batches * batch_size:])
         return out
         return self.gen_only0(interpolated_noises)
 
     def cubic_interpolate(self, freq=2, batch_size=8):
+        out_length = (self.nimages - 1) * freq
         xs = range(self.nimages)
         ys = self.rec_input_noises[0]
         interpolator = CubicSpline(xs, ys.cpu().numpy())
-        new_noises = interpolator(torch.linspace(0, self.nimages - 1, self.nimages * freq))
+        new_noises = interpolator(torch.linspace(0, self.nimages - 1, out_length))
         new_t_noises = torch.tensor(new_noises, device=self.device, dtype=torch.float32)
-        out = torch.zeros((self.nimages * freq, *self.scaled_images[-1].shape[1:]))
-        n_batches = self.nimages * freq // batch_size
+        out = torch.zeros((out_length, *self.scaled_images[-1].shape[1:]))
+        n_batches = out_length // batch_size
         for batch_idx in range(n_batches):
             out[batch_idx * batch_size : (batch_idx + 1) * batch_size] = self.gen_only0(new_t_noises[batch_idx * batch_size : (batch_idx + 1) * batch_size])
-        if n_batches * batch_size < self.nimages * freq:
+        if n_batches * batch_size < out_length:
             out[n_batches * batch_size:] = self.gen_only0(new_t_noises[n_batches * batch_size:])
         return out
 
