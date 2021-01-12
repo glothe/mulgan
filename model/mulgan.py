@@ -306,8 +306,8 @@ class MulGAN():
     def cubic_interpolate(self, freq=2):
         xs = range(self.nimages)
         ys = self.rec_input_noises[0]
-        interpolator = CubicSpline(xs, ys)
+        interpolator = CubicSpline(xs, ys.cpu().numpy())
         new_noises = interpolator(torch.linspace(0, self.nimages - 1, self.nimages * freq))
-        new_t_noises = torch.tensor(new_noises)
+        new_t_noises = torch.tensor(new_noises, device=self.device, dtype=torch.float32)
         return self.gen_only0(new_t_noises)
 
