@@ -119,8 +119,8 @@ def linear_mean_std_interpolator(tensor_batch, freq, device):
     start_means = torch.mean(this_frame_in, dim=(2, 3))
     start_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
     next_frame_in = tensor_batch[1:]
-    start_means = torch.mean(this_frame_in, dim=(2, 3))
-    start_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
+    end_means = torch.mean(this_frame_in, dim=(2, 3))
+    end_stds = torch.norm(this_frame_in - start_means[:, :, None, None], dim=(2, 3))
 
     interpolated_noises = torch.zeros((freq, *this_frame_in.shape), device=device)
     for i, t in enumerate(torch.linspace(0, 1, freq)):
