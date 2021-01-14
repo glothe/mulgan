@@ -12,8 +12,6 @@ from model.generator import Generator
 from model.discriminator import Discriminator
 from utils import *
 
-from scipy.interpolate import CubicSpline
-
 
 # Assumption for MulGAN: All images have the same size, and they are somehow coherent
 # (frames of a video, different points of view of a scene taken from different angles...)
